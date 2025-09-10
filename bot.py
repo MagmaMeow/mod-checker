@@ -6,6 +6,8 @@ import aioschedule
 import asyncio
 import logging
 import json
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from config import *
 from utils.storage import load_stats, save_stats
@@ -99,7 +101,7 @@ async def weekly_mod_check():
     await announce_channel.send(embed=embed)
     logging.info("Weekly mod check complete.")
 
-# --- SCHEDULER (inside bot.py to avoid circular import) ---
+# --- SCHEDULER ---
 async def start_scheduler():
     aioschedule.every().saturday.at("01:00").do(weekly_mod_check)
     while True:
@@ -139,6 +141,20 @@ async def remove_exempt(interaction: discord.Interaction, user: discord.Member):
 
     save_stats(mod_stats)
     await interaction.response.send_message(f"<@{user_id}> is no longer exempt from this week's mod check.", ephemeral=False)
+
+# --- SIMPLE HTTP SERVER FOR RENDER FREE WEB SERVICE ---
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+def run_server():
+    port = int(os.environ.get("PORT", 10000))  # <- Render assigns this automatically
+    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+    server.serve_forever()
+
+threading.Thread(target=run_server, daemon=True).start()
 
 # --- ON READY ---
 @bot.event
